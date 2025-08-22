@@ -1,4 +1,4 @@
-# Wikipedia-Crawler
+# Wikipedia-Crawler (dev)
 
 ## Plano de Trabalho – Projeto de Coleta e Grau de Separação (Wikipédia)
 
