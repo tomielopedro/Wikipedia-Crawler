@@ -12,8 +12,10 @@ guerra
 combate
 eleicoes
 festival
+import
 festa
 torneio
+agosto
 campeonato
 evento
 projeto
