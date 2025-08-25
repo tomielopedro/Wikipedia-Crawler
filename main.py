@@ -1,4 +1,4 @@
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 from bs4 import BeautifulSoup
 import threading
 import queue
@@ -28,11 +28,20 @@ LIMITE_PESSOAS = 10
 
 # Lock para manipulação segura de threads
 pessoas_lock = threading.Lock()
-def baixar_html(url, tentativas=3, delay=1.0):
+def baixar_html(url, tentativas=3, delay=1.5):
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/115.0 Safari/537.36"
+        )
+    }
+
     for i in range(tentativas):
         try:
             sleep(delay)
-            with urlopen(url) as resp:
+            req = Request(url, headers=headers)   # define o User-Agent
+            with urlopen(req) as resp:
                 return resp.read()
         except Exception as e:
             logging.warning(f"[Erro ao requisitar] {url} (tentativa {i+1}/{tentativas}): {e}")
@@ -42,7 +51,7 @@ def baixar_html(url, tentativas=3, delay=1.0):
 
 def eh_pessoa(url):
     """Verifica se a URL corresponde a uma pessoa"""
-    site = baixar_html(url, delay=1.5)  # espera 1.5s entre cada request
+    site = baixar_html(url, delay=1)  # espera 1.5s entre cada request
     if not site:
         return False
 
@@ -103,7 +112,7 @@ def classificador():
                 logging.info(f"Classificado como PESSOA: {link}")
 
                 # Salva em arquivo
-                with open("data/pessoas_encontradas.txt", "a", encoding="utf-8") as f:
+                with open("pessoas_encontradas.txt", "a", encoding="utf-8") as f:
                     f.write(link + "\n")
 
         else:
@@ -129,7 +138,7 @@ def coletor():
 
 
 if __name__ == "__main__":
-    url_inicial = "https://pt.wikipedia.org"
+    url_inicial = "https://pt.wikipedia.org/"
 
     # coloca a url inicial na fila de exploração
     coletar_queue.put(url_inicial)
