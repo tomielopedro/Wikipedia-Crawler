@@ -26,6 +26,9 @@ wikipedia_base_url = 'https://pt.wikipedia.org'
 # Limite de pessoas a coletar
 LIMITE_PESSOAS = 10
 
+# Probabilidade de ser pessoa
+PROB_PESSOA = 0.7
+
 # Lock para manipulação segura de threads
 pessoas_lock = threading.Lock()
 def baixar_html(url, tentativas=3, delay=1.5):
@@ -62,11 +65,25 @@ def eh_pessoa(url):
         return False
 
     atributos = infobox.find_all('td', {'scope': "row"})
+    prob = 0
     for at in atributos:
-        if re.search("[nN]ome|Nascimento|Nacionalidade|Assinatura", at.text):
-            return True
+        if re.search("[Nn]ome", at.text):
+            prob += 1
+        if re.search("[Nn]ascimento|[Dd]ata de [Nn]ascimento|[Mm]orte", at.text): 
+            prob += 1
+        if re.search("[Nn]acionalidade|[Cc]idadania", at.text): 
+            prob += 1
+        if re.search("[Aa]ssinatura", at.text): 
+            prob += 1
+        if re.search("[Pp]rofissão|[Oo]cupação", at.text):  
+            prob += 1
+        if re.search("[Ee]sposa|[Cc]ônjugue", at.text):
+            prob += 1
 
-    return False
+    # prob_ajustada = (prob - 0) / (6 - 0)
+    prob_ajustada = prob / 5
+
+    return prob_ajustada
 
 
 def find_url(url):
@@ -106,17 +123,21 @@ def classificador():
                 link_queue.task_done()
                 break
 
-        if eh_pessoa(link):
+        # Print para acompanhar quantas pessoas já foram classificadas
+        print(f">> QUANTIDADE DE PESSOAS CLASSIFICADAS: {len(pessoas_url)}")
+
+        prob_pessoa = eh_pessoa(link)  
+        if  prob_pessoa >= PROB_PESSOA:
             with pessoas_lock:
                 pessoas_url.append(link)
-                logging.info(f"Classificado como PESSOA: {link}")
+                logging.info(f"Classificado como PESSOA: {link}, {prob_pessoa}")
 
                 # Salva em arquivo
                 with open("pessoas_encontradas.txt", "a", encoding="utf-8") as f:
                     f.write(link + "\n")
 
         else:
-            logging.warning(f"[Classificador]--> NÃO PESSOA: {link}")
+            logging.warning(f"[Classificador]--> NÃO PESSOA: {link}, {prob_pessoa}")
             nao_pessoas_url.append(link)
             coletar_queue.put(link)
 
