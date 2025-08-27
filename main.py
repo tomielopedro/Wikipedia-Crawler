@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import threading
 import queue
 import regex as re
-from time import sleep
+from time import sleep, time
 import logging
 
 logging.basicConfig(
@@ -24,10 +24,10 @@ padrao_regex = re.compile(r"^/wiki/(?!.*[:()\[\]0-9.!])(.*_.*)$")
 wikipedia_base_url = 'https://pt.wikipedia.org'
 
 # Limite de pessoas a coletar
-LIMITE_PESSOAS = 10
+LIMITE_PESSOAS = 120
 
 # Probabilidade de ser pessoa
-PROB_PESSOA = 0.7
+PROB_PESSOA = 0.6
 
 # Lock para manipulação segura de threads
 pessoas_lock = threading.Lock()
@@ -64,20 +64,22 @@ def eh_pessoa(url):
     if not infobox:
         return False
 
-    atributos = infobox.find_all('td', {'scope': "row"})
+    # atributos = infobox.find_all('td', {'scope': "row"})
+    atributos = infobox.text.lower().split('\n')
+    atributos = list(filter(lambda x: x != '', atributos))
     prob = 0
     for at in atributos:
-        if re.search("[Nn]ome", at.text):
+        if re.search(r"[Nn]ome\b", at):
             prob += 1
-        if re.search("[Nn]ascimento|[Dd]ata de [Nn]ascimento|[Mm]orte", at.text): 
+        if re.search(r"[Nn]ascimento\b|[Dd]ata de [Nn]ascimento\b|[Mm]orte\b", at):
             prob += 1
-        if re.search("[Nn]acionalidade|[Cc]idadania", at.text): 
+        if re.search(r"[Nn]acionalidade\b|[Cc]idadania\b", at):
             prob += 1
-        if re.search("[Aa]ssinatura", at.text): 
+        if re.search(r"[Aa]ssinatura\b", at):
             prob += 1
-        if re.search("[Pp]rofissão|[Oo]cupação", at.text):  
+        if re.search(r"[Pp]rofissão\b|[Oo]cupação\b", at):
             prob += 1
-        if re.search("[Ee]sposa|[Cc]ônjugue", at.text):
+        if re.search(r"[Ee]sposa\b|[Cc]ônjugue\b", at):
             prob += 1
 
     # prob_ajustada = (prob - 0) / (6 - 0)
@@ -149,6 +151,12 @@ def coletor():
     while True:
         try:
             link = coletar_queue.get(timeout=30)
+            with pessoas_lock:
+                if len(pessoas_url) >= LIMITE_PESSOAS:
+                    logging.info("[Coletor] Limite atingido")
+                    link.task_done()
+                    break
+
         except queue.Empty:
             logging.info("[Coletor] Terminou")
             break
@@ -159,6 +167,7 @@ def coletor():
 
 
 if __name__ == "__main__":
+    inicio = time()
     url_inicial = "https://pt.wikipedia.org/"
 
     # coloca a url inicial na fila de exploração
@@ -178,6 +187,9 @@ if __name__ == "__main__":
         c.join()
     explorador_thread.join()
 
+    final = time()
+
     logging.info("\n=== Resultados finais ===")
     logging.info(f"Pessoas encontradas: {len(pessoas_url)}")
     logging.info(f"Não pessoas: {len(nao_pessoas_url)}")
+    logging.info(f"Tempo total: {final - inicio}")
