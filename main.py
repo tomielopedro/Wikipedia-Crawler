@@ -11,14 +11,12 @@ import aiofiles
 import unicodedata
 
 # config
-URL_INICIAL = "https://pt.wikipedia.org/wiki/Marie_Curie"
+URL_INICIAL = "https://pt.wikipedia.org"
 LIMITE_PESSOAS = 50
 MAX_CONEXOES = 50
 PROB_PESSOA = 0.6
 TIMEOUT_GERAL = 10
-PASTA_HTML = "paginas_html"
-
-
+PASTA_HTML = "data/paginas_html"
 
 @dataclass
 class LinkNode:
@@ -26,7 +24,6 @@ class LinkNode:
     prob: float
     pai: 'LinkNode' = None
     filhos: list = field(default_factory=list)
-
 
 fila_processamento = asyncio.Queue()
 pessoas_encontradas = []
@@ -37,7 +34,7 @@ requisicoes_http_contador = 0
 palavras_a_excluir = []
 
 
-# logs bonitos
+# logs coloridos
 class ColorFormatter(logging.Formatter):
     COLORS = {"INFO": "\033[32m", "WARNING": "\033[33m", "ERROR": "\033[31m", "DEBUG": "\033[34m", "RESET": "\033[0m"}
 
@@ -69,7 +66,8 @@ async def baixar_html(session: aiohttp.ClientSession, url: str) -> str | None:
         timeout = ClientTimeout(total=TIMEOUT_GERAL)
         headers = {"User-Agent": "Mozilla/5.0"}
         async with session.get(url, timeout=timeout, headers=headers) as response:
-            if response.status == 200: return await response.text()
+            if response.status == 200:
+                return await response.text()
     except asyncio.CancelledError:
         pass
     except Exception as e:
@@ -87,10 +85,12 @@ async def salvar_html(nome_arquivo: str, html_content: str):
 
 
 def eh_pessoa(html: str) -> float:
-    if not html: return 0.0
+    if not html:
+        return 0.0
     soup = BeautifulSoup(html, 'lxml')
     infobox = soup.find("table", class_=re.compile("^[iI]nfobox"))
-    if not infobox: return 0.0
+    if not infobox:
+        return 0.0
     infobox_text = infobox.text.lower()
     prob = 0
     if "nascimento" in infobox_text or "morte" in infobox_text: prob += 2
@@ -115,17 +115,20 @@ def extrair_links_validos(html: str, url_base: str) -> set[str]:
 
 def print_tree(node: LinkNode, nivel=0, max_niveis=3):
     if nivel > max_niveis:
-        if node.filhos: print("  " * nivel + "...")
+        if node.filhos:
+            print("  " * nivel + "...")
         return
     print("  " * nivel + f"-> {node.url} (Prob: {node.prob:.2f})")
     for filho in node.filhos:
         print_tree(filho, nivel + 1, max_niveis)
 
 
-
 async def worker(name: str, session: aiohttp.ClientSession):
     while True:
         no_pai: LinkNode = await fila_processamento.get()
+        if no_pai is None:  # sentinela para encerrar
+            fila_processamento.task_done()
+            break
         try:
             html_pai = await baixar_html(session, no_pai.url)
             if not html_pai:
@@ -161,16 +164,37 @@ async def worker(name: str, session: aiohttp.ClientSession):
             fila_processamento.task_done()
 
 
-async def monitor_de_limite(tasks: list):
+async def monitor_de_limite(tasks: list, session: aiohttp.ClientSession):
     while True:
         async with lock:
             if len(pessoas_encontradas) >= LIMITE_PESSOAS:
-                logging.warning("Limite atingido! Cancelando tarefas e finalizando...")
-                for task in tasks:
-                    task.cancel()
+                logging.warning("Limite atingido! Finalizando workers...")
+
+                # fecha a sessão para cancelar downloads pendentes
+                await session.close()
+
+                # coloca sentinela para cada worker
+                for _ in tasks:
+                    await fila_processamento.put(None)
                 break
         await asyncio.sleep(0.1)
 
+async def salvar_arvore_txt(raiz: LinkNode, caminho="data/arvore_links.txt", max_niveis=3):
+    linhas = []
+
+    def percorrer(node: LinkNode, nivel=0):
+        if nivel > max_niveis:
+            return
+        for filho in node.filhos:
+            linhas.append(f"{node.url} -> {filho.url}")
+            percorrer(filho, nivel + 1)
+
+    percorrer(raiz)
+
+    async with aiofiles.open(caminho, "w", encoding="utf-8") as f:
+        await f.write("\n".join(linhas))
+
+    logging.info(f"Árvore salva em {caminho}")
 
 async def main():
     global palavras_a_excluir, inicio_tempo
@@ -196,9 +220,16 @@ async def main():
         await fila_processamento.put(raiz)
 
         tasks = [asyncio.create_task(worker(f"Worker-{i + 1}", session)) for i in range(MAX_CONEXOES)]
-        monitor = asyncio.create_task(monitor_de_limite(tasks))
+        monitor = asyncio.create_task(monitor_de_limite(tasks, session))
 
-        await asyncio.gather(*tasks, monitor, return_exceptions=True)
+
+        # espera monitor sinalizar e fila esvaziar
+        await monitor
+        await fila_processamento.join()
+
+        # espera todos workers finalizarem
+        for task in tasks:
+            await task
 
     tempo_total = time() - inicio_tempo
     total_pessoas = len(pessoas_encontradas)
@@ -216,6 +247,7 @@ async def main():
     print("\nÁrvore de Pessoas Encontradas:")
     if 'raiz' in locals():
         print_tree(raiz)
+        await salvar_arvore_txt(raiz, "arvore_links.txt")
 
 
 if __name__ == "__main__":
