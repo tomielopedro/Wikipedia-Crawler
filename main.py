@@ -12,7 +12,7 @@ import unicodedata
 
 # config
 URL_INICIAL = "https://pt.wikipedia.org"
-LIMITE_PESSOAS = 50
+LIMITE_PESSOAS = 1200
 MAX_CONEXOES = 50
 PROB_PESSOA = 0.6
 TIMEOUT_GERAL = 10
