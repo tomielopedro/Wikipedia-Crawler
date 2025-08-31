@@ -1,0 +1,7 @@
+URL_INICIAL: "https://pt.wikipedia.org"
+LIMITE_PESSOAS: 50
+MAX_CONEXOES: 50
+PROB_PESSOA: 0.6
+TIMEOUT_GERAL: 10
+PASTA_HTML: "data/paginas_html"
+

@@ -9,14 +9,18 @@ import logging
 import os
 import aiofiles
 import unicodedata
+import yaml
 
-# config
-URL_INICIAL = "https://pt.wikipedia.org"
-LIMITE_PESSOAS = 1200
-MAX_CONEXOES = 50
-PROB_PESSOA = 0.6
-TIMEOUT_GERAL = 10
-PASTA_HTML = "data/paginas_html"
+# Carregar configurações do arquivo YAML
+with open("configurations.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+URL_INICIAL = config["URL_INICIAL"]
+LIMITE_PESSOAS = config["LIMITE_PESSOAS"]
+MAX_CONEXOES = config["MAX_CONEXOES"]
+PROB_PESSOA = config["PROB_PESSOA"]
+TIMEOUT_GERAL = config["TIMEOUT_GERAL"]
+PASTA_HTML = config["PASTA_HTML"]
 
 @dataclass
 class LinkNode:
@@ -103,7 +107,7 @@ def eh_pessoa(html: str) -> float:
 
 def extrair_links_validos(html: str, url_base: str) -> set[str]:
     soup = BeautifulSoup(html, 'lxml')
-    padrao_artigo = re.compile(r"^/wiki/(?!.*[:()\[\]0-9.])[^:]+$")
+    padrao_artigo = re.compile(r"^/wiki/(?!.*[:()\\[\\]0-9.])[^:]+$")
     links_brutos = {a['href'] for a in soup.find_all('a', href=padrao_artigo)}
     links_limpos = set()
     for href in links_brutos:
@@ -247,7 +251,7 @@ async def main():
     print("\nÁrvore de Pessoas Encontradas:")
     if 'raiz' in locals():
         print_tree(raiz)
-        await salvar_arvore_txt(raiz, "arvore_links.txt")
+        await salvar_arvore_txt(raiz, "data/arvore_links.txt")
 
 
 if __name__ == "__main__":
@@ -257,3 +261,5 @@ if __name__ == "__main__":
         logging.info("\ninterrompido pelo usuário.")
     except asyncio.CancelledError:
         logging.info("\nExecução cancelada.")
+
+
