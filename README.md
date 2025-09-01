@@ -46,6 +46,7 @@ Este projeto foi projetado com a eficiência em mente, aproveitando os seguintes
 
 
 
+
 ## Como Usar
 
 Para executar este projeto, siga os passos abaixo:
@@ -78,16 +79,21 @@ As configurações do scraper são definidas no arquivo `configuration.yaml`. Vo
 - `PROB_PESSOA`: A probabilidade mínima (0.0 a 1.0) para uma página ser considerada sobre uma pessoa. (Padrão: `0.6`)
 - `TIMEOUT_GERAL`: O tempo limite em segundos para as requisições HTTP. (Padrão: `10`)
 - `PASTA_HTML`: O diretório onde os arquivos HTML das páginas de pessoas serão salvos. (Padrão: `data/paginas_html`)
+- `PASTA_ARVORE`: O diretório onde o arquivo da árvore de conexões entre páginas. (Padrão: `data/arvore_links.txt`)
+- `PASTA_PALAVRAS_EXCLUIR`: O diretório onde o arquivo de palavras para excluir dos links será salvo. (Padrão: `data/palavras_para_excluir.txt`)
+
 
 Exemplo de `configuration.yaml`:
 
 ```yaml
 URL_INICIAL: "https://pt.wikipedia.org"
-LIMITE_PESSOAS: 1200
+LIMITE_PESSOAS: 50
 MAX_CONEXOES: 50
 PROB_PESSOA: 0.6
 TIMEOUT_GERAL: 10
 PASTA_HTML: "data/paginas_html"
+PASTA_ARVORE: "data/arvore_links.txt"
+PASTA_PALAVRAS_EXCLUIR: "data/palavras_para_excluir.txt"
 ```
 
 Você também pode criar um arquivo `data/palavras_para_excluir.txt` (um por linha) para listar palavras-chave que, se presentes em um link, farão com que ele seja ignorado. Isso é útil para evitar páginas de desambiguação, listas, etc.

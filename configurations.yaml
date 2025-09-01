@@ -4,4 +4,5 @@ MAX_CONEXOES: 50
 PROB_PESSOA: 0.6
 TIMEOUT_GERAL: 10
 PASTA_HTML: "data/paginas_html"
-
+PASTA_ARVORE: "data/arvore_links.txt"
+PASTA_PALAVRAS_EXCLUIR: "data/palavras_para_excluir.txt"

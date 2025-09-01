@@ -21,7 +21,8 @@ MAX_CONEXOES = config["MAX_CONEXOES"]
 PROB_PESSOA = config["PROB_PESSOA"]
 TIMEOUT_GERAL = config["TIMEOUT_GERAL"]
 PASTA_HTML = config["PASTA_HTML"]
-
+PASTA_ARVORE = config["PASTA_ARVORE"]
+PASTA_PALAVRAS_EXCLUIR = config["PASTA_PALAVRAS_EXCLUIR"]
 @dataclass
 class LinkNode:
     url: str
@@ -88,21 +89,36 @@ async def salvar_html(nome_arquivo: str, html_content: str):
         logging.error(f"Falha ao salvar o arquivo {caminho_completo}: {e}")
 
 
+import re
+from bs4 import BeautifulSoup
+
 def eh_pessoa(html: str) -> float:
     if not html:
         return 0.0
+
     soup = BeautifulSoup(html, 'lxml')
-    infobox = soup.find("table", class_=re.compile("^[iI]nfobox"))
-    if not infobox:
-        return 0.0
-    infobox_text = infobox.text.lower()
     prob = 0
-    if "nascimento" in infobox_text or "morte" in infobox_text: prob += 2
-    if "nome completo" in infobox_text: prob += 1
-    if "nacionalidade" in infobox_text or "cidadania" in infobox_text: prob += 1
-    if "profissão" in infobox_text or "ocupação" in infobox_text: prob += 1
-    if "cônjuge" in infobox_text or "assinatura" in infobox_text: prob += 1
-    return prob / 5
+
+    # ---------- INFBOX ----------
+    infobox = soup.find("table", class_=re.compile("^[iI]nfobox"))
+    if infobox:
+        infobox_text = infobox.get_text(separator=" ").lower()
+        if "nascimento" in infobox_text or "morte" in infobox_text: prob += 2
+        if "nome completo" in infobox_text: prob += 1
+        if "nacionalidade" in infobox_text or "cidadania" in infobox_text: prob += 1
+        if "profissão" in infobox_text or "ocupação" in infobox_text: prob += 1
+        if "cônjuge" in infobox_text or "assinatura" in infobox_text: prob += 1
+
+    # ---------- CATEGORIAS ----------
+    catlinks = soup.find("div", id="mw-normal-catlinks")
+    if catlinks:
+        cats_text = catlinks.get_text(separator=" ").lower()
+        if "pessoas" in cats_text or "vivas" in cats_text: prob += 1
+        if "mortos" in cats_text: prob += 1
+        if "naturais" in cats_text or "nascidos" in cats_text: prob += 1
+
+    # escala 0-1
+    return min(prob / 6, 1.0)
 
 
 def extrair_links_validos(html: str, url_base: str) -> set[str]:
@@ -163,7 +179,7 @@ async def worker(name: str, session: aiohttp.ClientSession):
 
                             tempo = time() - inicio_tempo
                             logging.info(
-                                f"PESSOA: {link_url} | Prob: {prob} | Total: {len(pessoas_encontradas)}/{LIMITE_PESSOAS} | Tempo: {tempo:.1f}s")
+                                f"PESSOA: {link_url} | Prob: {prob:.2f} | Total: {len(pessoas_encontradas)}/{LIMITE_PESSOAS} | Tempo: {tempo:.1f}s")
         finally:
             fila_processamento.task_done()
 
@@ -205,11 +221,11 @@ async def main():
     inicio_tempo = time()
 
     try:
-        with open("data/palavras_para_excluir.txt", "r", encoding="utf-8") as f:
+        with open(PASTA_PALAVRAS_EXCLUIR, "r", encoding="utf-8") as f:
             palavras_a_excluir = [normalizar(line.strip()) for line in f if line.strip()]
         logging.info(f"{len(palavras_a_excluir)} palavras de exclusão carregadas.")
     except FileNotFoundError:
-        logging.warning("Arquivo 'data/palavras_para_excluir.txt' não encontrado.")
+        logging.warning(f"Arquivo {PASTA_PALAVRAS_EXCLUIR} não encontrado.")
 
     if not os.path.exists(PASTA_HTML):
         os.makedirs(PASTA_HTML)
@@ -251,7 +267,7 @@ async def main():
     print("\nÁrvore de Pessoas Encontradas:")
     if 'raiz' in locals():
         print_tree(raiz)
-        await salvar_arvore_txt(raiz, "data/arvore_links.txt")
+        await salvar_arvore_txt(raiz, PASTA_ARVORE)
 
 
 if __name__ == "__main__":
